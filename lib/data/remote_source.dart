@@ -1,28 +1,29 @@
-
 import 'package:caching_data_examples/data/shared_pref_cached_data.dart';
-import 'package:http/http.dart' as http;
-
+import 'package:caching_data_examples/entity/post_entity.dart';
+import 'package:caching_data_examples/model/post_model.dart';
+import 'package:dio/dio.dart';
 
 class RemoteSource {
-  final MySharedPreferences mySharedPreferences;
+  final Dio _dio;
 
-  RemoteSource(this.mySharedPreferences);
+  final BaseLocalDataSource baseLocalDataSource;
 
-  Future<String> fetchData() async {
-    print('fetchData');
+  RemoteSource(this.baseLocalDataSource, this._dio);
+
+  Future<PostEntity> fetchData() async {
     try {
-      final response = await http
-          .get(Uri.parse('https://jsonplaceholder.typicode.com/posts'));
+      final response =
+          await _dio.get('https://jsonplaceholder.typicode.com/posts/1');
       if (response.statusCode != 200) {
         throw Exception('Failed to load data');
       } else {
-        final isSaved = await mySharedPreferences.saveDataWithExpiration(
-            response.body, const Duration(days: 10));
-        if (isSaved) {
-          return response.body;
-        } else {
-          throw Exception('Failed to save data');
-        }
+        PostEntity post = PostItem.fromMap(response.data);
+        baseLocalDataSource.saveInLocalBox<PostEntity>(
+          data: post,
+          expirationDuration: const Duration(days: 1),
+          labelKey: '123',
+        );
+        return post;
       }
     } catch (error) {
       throw Exception(error);

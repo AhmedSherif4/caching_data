@@ -1,62 +1,112 @@
-import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:developer' as devtools show log;
 
-class MySharedPreferences {
-  static const String _keyData = 'myData';
-  static const String _keyExpiration = 'expirationTime';
+import 'package:hive/hive.dart';
 
-  Future<bool> saveDataWithExpiration(String data, Duration expirationDuration) async {
+extension Log on Object {
+  void log() => devtools.log(toString());
+}
+
+class BaseLocalDataSource {
+  final List<int> _secureKey = Hive.generateSecureKey();
+  static const String _boxExpiration = 'boxExpiration';
+  static const String _boxData = 'boxData';
+
+  void saveInLocalBox<T>({
+    required String labelKey,
+    required T data,
+    required Duration expirationDuration,
+    bool isSecured = false,
+  }) async {
     try {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      DateTime expirationTime = DateTime.now().add(expirationDuration);
-      await prefs.setString(_keyData, data);
-      await prefs.setString(_keyExpiration, expirationTime.toIso8601String());
-      print('Data saved to SharedPreferences.');
-      return true;
-    } catch (e) {
-      print('Error saving data to SharedPreferences: $e');
-      return false;
+      'saveInLocalBox Opening expiration box'.log();
+      final Box<String> expirationBox = await Hive.openBox<String>(
+        _boxExpiration,
+      );
+      'saveInLocalBox Putting expiration time in box'.log();
+      expirationBox.put(
+        labelKey,
+        DateTime.now().add(expirationDuration).toIso8601String(),
+      );
+      'saveInLocalBox Opening data box'.log();
+      final Box<T> dataBox = await Hive.openBox<T>(
+        _boxData,
+        encryptionCipher: isSecured ? HiveAesCipher(_secureKey) : null,
+      );
+      'saveInLocalBox Putting data in box'.log();
+      dataBox.put(labelKey, data);
+    } catch (error) {
+      'saveInLocalBox Error saving data in local box: $error'.log();
+    } finally {
+      'saveInLocalBox Closing all open boxes'.log();
+      Hive.close();
     }
   }
 
-  Future<String?> getDataIfNotExpired() async {
+  Future<T?> getFromLocalBox<T>({
+    required String labelKey,
+    bool isSecured = false,
+  }) async {
+      labelKey.log();
+    // Try to open the expiration box and get the expiration time.
     try {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      String? data = prefs.getString(_keyData);
-      String? expirationTimeStr = prefs.getString(_keyExpiration);
-      if (data == null || expirationTimeStr == null) {
-        print('No data or expiration time found in SharedPreferences.');
-        return null; // No data or expiration time found.
-      }
+      'getFromLocalBox Opening expiration box'.log();
+      final expirationBox = await Hive.openBox<String>(_boxExpiration);
+      final expirationTimeFromBox = expirationBox.get(labelKey);
 
-      DateTime expirationTime = DateTime.parse(expirationTimeStr);
-      if (expirationTime.isAfter(DateTime.now())) {
-        print('Data has not expired.');
-        // The data has not expired.
-        return data;
-      } else {
-        // Data has expired. Remove it from SharedPreferences.
-        await prefs.remove(_keyData);
-        await prefs.remove(_keyExpiration);
-        print('Data has expired. Removed from SharedPreferences.');
+      // Open the data box and get the data.
+      'getFromLocalBox Opening data box'.log();
+      final dataBox = await Hive.openBox<T>(
+        _boxData,
+        encryptionCipher: isSecured ? HiveAesCipher(_secureKey) : null,
+      );
+      final data = dataBox.get(labelKey);
+
+
+      'data == null'.log();
+      '${data == null}'.log();
+      'expirationTimeFromBox == null'.log();
+      '${expirationTimeFromBox == null}'.log();
+      // If the data or expiration time is null, return null.
+      if (data == null || expirationTimeFromBox == null) {
         return null;
       }
+
+      // Parse the expiration time and compare it to the current time.
+      DateTime expirationTime = DateTime.parse(expirationTimeFromBox);
+      expirationTime.log();
+      DateTime.now().log();
+      expirationTime.isBefore(DateTime.now()).log();
+      if (expirationTime.isBefore(DateTime.now())) {
+        // Delete the expired data and expiration time.
+        'getFromLocalBox Deleting data'.log();
+        dataBox.delete(labelKey);
+        expirationBox.delete(labelKey);
+        return null;
+      } else {
+        'getFromLocalBox Returning data'.log();
+        return data;
+      }
     } catch (e) {
-      print('Error retrieving data from SharedPreferences: $e');
+      // Handle any errors that occur.
+      'getFromLocalBox Error getting data from local box: $e'.log();
+      //todo: throw exception
       return null;
+    } finally {
+      'getFromLocalBox Closing all open boxes'.log();
+      Hive.close();
     }
   }
 
-  Future<void> clearData() async {
-    try {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_keyData);
-      await prefs.remove(_keyExpiration);
-      print('Data cleared from SharedPreferences.');
-    } catch (e) {
-      print('Error clearing data from SharedPreferences: $e');
-    }
+  Future<void> deleteDataAt(String labelKey) async {
+    'deleteDataAt Opening boxes'.log();
+    final expirationBox = await Hive.openBox<String>(_boxExpiration);
+    final dataBox = await Hive.openBox(_boxData);
+
+    'deleteDataAt Deleting data at $labelKey'.log();
+    await expirationBox.delete(labelKey);
+    await dataBox.delete(labelKey);
+
+    'Closing all open boxes'.log();
+    Hive.close();
   }
-
-
-
 }

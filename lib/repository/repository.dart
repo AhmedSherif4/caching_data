@@ -1,39 +1,33 @@
-
-import 'dart:convert';
+import 'package:caching_data_examples/entity/post_entity.dart';
 
 import '../data/remote_source.dart';
-import '../model/post_model.dart';
 import '../data/shared_pref_cached_data.dart';
-
 
 class RepositoryForSharedPrefWay {
   final RemoteSource remoteSource;
-  final MySharedPreferences mySharedPreferences;
+  final BaseLocalDataSource baseLocalDataSource;
   RepositoryForSharedPrefWay({
     required this.remoteSource,
-    required this.mySharedPreferences,
+    required this.baseLocalDataSource,
   });
 
-  Future<List<PostItem>> getData() async {
+  Future<PostEntity> getData() async {
     try {
-      final String? jsonData = await mySharedPreferences.getDataIfNotExpired();
-      if (jsonData != null) {
-        return List<PostItem>.from(
-          (jsonDecode(jsonData) as List).map(
-            (post) => PostItem.fromMap(post),
-          ),
-        );
+      final PostEntity? localPost =
+          await baseLocalDataSource.getFromLocalBox<PostEntity>(
+        labelKey: '123',
+      );
+      if (localPost != null) {
+        return localPost;
       } else {
-        await remoteSource.fetchData();
-        return getData();
+        return await remoteSource.fetchData();
       }
     } catch (error) {
       throw Exception(error);
     }
   }
 
-  Future<List<PostItem>> refreshData() async {
-    await remoteSource.fetchData();
-    return getData();
+  Future<PostEntity> refreshData() async {
+    return await remoteSource.fetchData();
   }
 }
