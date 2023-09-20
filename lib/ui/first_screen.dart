@@ -1,9 +1,10 @@
 import 'package:caching_data_examples/data/remote_source.dart';
-import 'package:caching_data_examples/data/shared_pref_cached_data.dart';
+import 'package:caching_data_examples/entity/post_entity.dart';
 import 'package:caching_data_examples/ui/sec_screen.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
-import '../../../model/post_model.dart';
+import '../data/shared_pref_cached_data.dart';
 import '../repository/repository.dart';
 
 class FirstScreen extends StatefulWidget {
@@ -15,10 +16,10 @@ class FirstScreen extends StatefulWidget {
 
 class _FirstScreenState extends State<FirstScreen> {
   final RepositoryForSharedPrefWay _repoClass2 = RepositoryForSharedPrefWay(
-      remoteSource: RemoteSource(MySharedPreferences()),
-      mySharedPreferences: MySharedPreferences());
+      remoteSource: RemoteSource(BaseLocalDataSource(), Dio()),
+      baseLocalDataSource: BaseLocalDataSource());
 
-  Future<List<PostItem>> posts() async =>
+  Future<PostEntity> post() async =>
       await _repoClass2.getData().then((value) => value);
 
   @override
@@ -32,7 +33,7 @@ class _FirstScreenState extends State<FirstScreen> {
     return Scaffold(
       body: Center(
         child: FutureBuilder(
-          future: posts(),
+          future: post(),
           builder: (futureContext, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               /*   ScaffoldMessenger.of(context).showSnackBar(
@@ -47,13 +48,13 @@ class _FirstScreenState extends State<FirstScreen> {
             } else if (snapshot.hasError) {
               return Center(child: Text('Error: ${snapshot.error}'));
             } else {
-              List<PostItem> posts = snapshot.data!;
+              PostEntity posts = snapshot.data!;
               return Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: ListView.builder(
                     itemBuilder: (context, index) => ListTile(
-                      title: Text(posts[index].title),
-                      subtitle: Text(posts[index].body),
+                      title: Text(posts.title),
+                      subtitle: Text(posts.body),
                       leading: IconButton(
                           onPressed: () {
                             Navigator.push(
@@ -65,7 +66,7 @@ class _FirstScreenState extends State<FirstScreen> {
                           },
                           icon: const Icon(Icons.arrow_back)),
                     ),
-                    itemCount: posts.length,
+                    itemCount: 1,
                   ));
             }
           },

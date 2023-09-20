@@ -1,21 +1,14 @@
 // ignore_for_file: public_member_api_docs, sort_constructors_first
 import 'dart:convert';
 
-import 'package:equatable/equatable.dart';
+import '../entity/post_entity.dart';
 
-class PostItem extends Equatable {
-  final int id;
-  final String title;
-  final String body;
-
-   PostItem({
-    required this.id,
-    required this.title,
-    required this.body,
-  });
-
-  @override
-  List<Object> get props => [id, title, body];
+class PostItem extends PostEntity {
+  const PostItem({
+    required int id,
+    required String title,
+    required String body,
+  }) : super(id: id, title: title, body: body);
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
@@ -35,5 +28,6 @@ class PostItem extends Equatable {
 
   String toJson() => json.encode(toMap());
 
-  factory PostItem.fromJson(String source) => PostItem.fromMap(json.decode(source) as Map<String, dynamic>);
+  factory PostItem.fromJson(String source) =>
+      PostItem.fromMap(json.decode(source) as Map<String, dynamic>);
 }
